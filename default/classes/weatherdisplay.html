@@ -1,54 +1,70 @@
 <template>
-    <lightning-card title="Weather" icon-name="utility:world">
+    <lightning-card title="Weather">
         <div class="slds-p-around_medium">
+            <!-- Loading state -->
+            <template if:true={loading}>
+                <lightning-spinner alternative-text="Loading weather"></lightning-spinner>
+            </template>
+
+            <!-- Error from wire or catch -->
+            <template if:true={error}>
+                <p class="slds-text-color_error">{error}</p>
+            </template>
+
+            <!-- Weather content -->
+            <template if:true={hasWeather}>
+                <p>
+                    <strong>{weather.locationName}</strong>
+                </p>
+
+                <template if:true={temperature}>
+                    <p>Temperature: {temperature}</p>
+                </template>
+
+                <template if:true={description}>
+                    <p>Description: {description}</p>
+                </template>
+
+                <template if:true={humidity}>
+                    <p>Humidity: {humidity}%</p>
+                </template>
+
+                <template if:true={windSpeed}>
+                    <p>Wind Speed: {windSpeed}</p>
+                </template>
+
+                <template if:true={retrievedAt}>
+                    <p class="slds-text-color_weak slds-text-body_small">
+                        Latest Weather Retrieved At (WeatherInfo): {retrievedAt}
+                    </p>
+                </template>
+
+                <template if:true={lastStatus}>
+                    <p class="slds-text-color_weak slds-text-body_small">
+                        Last Weather Status (Location): {lastStatus}
+                    </p>
+                </template>
+
+                <template if:true={lastUpdatedLocation}>
+                    <p class="slds-text-color_weak slds-text-body_small">
+                        Last Weather Updated (Location): {lastUpdatedLocation}
+                    </p>
+                </template>
+            </template>
+
+            <!-- No data yet -->
+            <template if:false={hasWeather}>
+                <p>No weather data yet. Click Refresh to fetch the latest information.</p>
+            </template>
+
+            <!-- Action button -->
             <lightning-button
                 label="Refresh / Get Weather Details"
                 variant="brand"
                 onclick={handleRefresh}
                 disabled={loading}
-                class="slds-m-bottom_small">
+                class="slds-m-top_medium">
             </lightning-button>
-
-            <template if:true={loading}>
-                <lightning-spinner alternative-text="Loading weather"></lightning-spinner>
-            </template>
-
-            <template if:true={hasError}>
-                <p class="slds-text-color_error">
-                    {error}
-                </p>
-            </template>
-
-            <template if:true={hasData}>
-                <div class="slds-grid slds-wrap slds-m-top_small">
-                    <div class="slds-col slds-size_1-of-2">
-                        <p class="slds-text-title_caps">
-                            {weather.locationName}
-                        </p>
-                        <p class="slds-text-heading_large">
-                            {temperature}°
-                        </p>
-                        <p class="slds-text-body_regular">
-                            {description}
-                        </p>
-                    </div>
-                    <div class="slds-col slds-size_1-of-2 slds-text-align_right">
-                        <p>Humidity: {humidity}%</p>
-                        <p>Wind: {windSpeed}</p>
-                        <template if:true={lastUpdated}>
-                            <p class="slds-text-color_weak slds-text-body_small">
-                                Updated: {lastUpdated}
-                            </p>
-                        </template>
-                    </div>
-                </div>
-            </template>
-
-            <template if:true={showEmptyState}>
-                <p class="slds-text-color_weak">
-                    No weather data yet. Click "Refresh / Get Weather Details".
-                </p>
-            </template>
         </div>
     </lightning-card>
 </template>
