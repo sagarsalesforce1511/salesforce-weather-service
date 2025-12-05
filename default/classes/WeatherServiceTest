@@ -1,0 +1,126 @@
+@IsTest
+private class WeatherServiceTest {
+
+    // Simple success mock reused for service tests
+    private class WeatherSuccessMock implements HttpCalloutMock {
+        public HTTPResponse respond(HTTPRequest req) {
+            HttpResponse res = new HttpResponse();
+            res.setStatusCode(200);
+            res.setStatus('OK');
+
+            res.setBody('{' +
+                '"main":{"temp":25,"humidity":50,"pressure":1010},' +
+                '"weather":[{"id":500,"main":"Rain","description":"light rain","icon":"10d"}],' +
+                '"wind":{"speed":5,"deg":90},' +
+                '"name":"Service Test City",' +
+                '"sys":{"country":"GB"},' +
+                '"dt":1726660758' +
+            '}');
+
+            return res;
+        }
+    }
+
+    // We assume Weather_Config__mdt Default record already exists in the org.
+
+    @IsTest
+    static void testRefreshWeatherForLocation_createsWeatherInfoAndUpdatesLocation() {
+        Test.setMock(HttpCalloutMock.class, new WeatherSuccessMock());
+
+        // Create a Location__c with coordinates
+        Location__c loc = new Location__c(
+            Name         = 'Test Location',
+            Latitude__c  = 51.5074,
+            Longitude__c = -0.1278
+        );
+        insert loc;
+
+        Test.startTest();
+        WeatherService.WeatherDTO dto =
+            WeatherService.refreshWeatherForLocation(loc.Id);
+        Test.stopTest();
+
+        // DTO assertions
+        System.assertEquals(loc.Id, dto.locationId, 'DTO should reference the same Location');
+        System.assertEquals(25, dto.temperature, 'DTO temperature should come from mocked API');
+        System.assertEquals('light rain', dto.description, 'DTO description should come from mock');
+        System.assertEquals(50, dto.humidity, 'DTO humidity should come from mock');
+
+        // WeatherInfo__c should have been created
+        List<WeatherInfo__c> wiList = [
+            SELECT Location__c, Temperature__c, Humidity__c, Pressure__c,
+                   Description__c, WindSpeed__c, RetrievedAt__c, IsLatest__c
+            FROM WeatherInfo__c
+            WHERE Location__c = :loc.Id
+        ];
+        System.assertEquals(1, wiList.size(), 'One WeatherInfo__c record should be created');
+        WeatherInfo__c wi = wiList[0];
+        System.assertEquals(true, wi.IsLatest__c, 'WeatherInfo__c should be marked as latest');
+        System.assertEquals(25, wi.Temperature__c, 'WeatherInfo temperature should match mock');
+
+        // Location__c should be updated
+        Location__c updatedLoc = [
+            SELECT Last_Weather_Updated__c, Last_Weather_Status__c
+            FROM Location__c
+            WHERE Id = :loc.Id
+        ];
+        System.assertNotEquals(null, updatedLoc.Last_Weather_Updated__c,
+            'Last_Weather_Updated__c should be set on Location');
+        System.assertEquals('Success', updatedLoc.Last_Weather_Status__c,
+            'Location status should be Success after refresh');
+    }
+
+    @IsTest
+    static void testGetLatestWeatherForLocation_returnsDTO() {
+        // Arrange: location and existing weather record
+        Location__c loc = new Location__c(
+            Name = 'Test Location 2'
+        );
+        insert loc;
+
+        WeatherInfo__c wi = new WeatherInfo__c(
+            Location__c    = loc.Id,
+            Temperature__c = 15,
+            Humidity__c    = 70,
+            Pressure__c    = 1005,
+            Description__c = 'cloudy',
+            WindSpeed__c   = 4,
+            RetrievedAt__c = System.now(),
+            IsLatest__c    = true
+        );
+        insert wi;
+
+        Test.startTest();
+        WeatherService.WeatherDTO dto =
+            WeatherService.getLatestWeatherForLocation(loc.Id);
+        Test.stopTest();
+
+        System.assertEquals(loc.Id, dto.locationId, 'DTO should reference the Location');
+        System.assertEquals('Test Location 2', dto.locationName, 'Location name should match');
+        System.assertEquals(15, dto.temperature, 'DTO temperature should come from WeatherInfo__c');
+        System.assertEquals('cloudy', dto.description, 'DTO description should come from WeatherInfo__c');
+        System.assertEquals(70, dto.humidity, 'DTO humidity should come from WeatherInfo__c');
+    }
+
+    @IsTest
+    static void testRefreshWeatherForLocation_missingLatLon_throws() {
+        Test.setMock(HttpCalloutMock.class, new WeatherSuccessMock());
+
+        // Location without coordinates
+        Location__c loc = new Location__c(
+            Name = 'No Coords Location'
+        );
+        insert loc;
+
+        Test.startTest();
+        Boolean thrown = false;
+        try {
+            WeatherService.refreshWeatherForLocation(loc.Id);
+        } catch (AuraHandledException e) {
+            thrown = true;
+           
+        }
+        Test.stopTest();
+
+    }
+}
