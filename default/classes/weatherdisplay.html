@@ -1,0 +1,54 @@
+<template>
+    <lightning-card title="Weather" icon-name="utility:world">
+        <div class="slds-p-around_medium">
+            <lightning-button
+                label="Refresh / Get Weather Details"
+                variant="brand"
+                onclick={handleRefresh}
+                disabled={loading}
+                class="slds-m-bottom_small">
+            </lightning-button>
+
+            <template if:true={loading}>
+                <lightning-spinner alternative-text="Loading weather"></lightning-spinner>
+            </template>
+
+            <template if:true={hasError}>
+                <p class="slds-text-color_error">
+                    {error}
+                </p>
+            </template>
+
+            <template if:true={hasData}>
+                <div class="slds-grid slds-wrap slds-m-top_small">
+                    <div class="slds-col slds-size_1-of-2">
+                        <p class="slds-text-title_caps">
+                            {weather.locationName}
+                        </p>
+                        <p class="slds-text-heading_large">
+                            {temperature}°
+                        </p>
+                        <p class="slds-text-body_regular">
+                            {description}
+                        </p>
+                    </div>
+                    <div class="slds-col slds-size_1-of-2 slds-text-align_right">
+                        <p>Humidity: {humidity}%</p>
+                        <p>Wind: {windSpeed}</p>
+                        <template if:true={lastUpdated}>
+                            <p class="slds-text-color_weak slds-text-body_small">
+                                Updated: {lastUpdated}
+                            </p>
+                        </template>
+                    </div>
+                </div>
+            </template>
+
+            <template if:true={showEmptyState}>
+                <p class="slds-text-color_weak">
+                    No weather data yet. Click "Refresh / Get Weather Details".
+                </p>
+            </template>
+        </div>
+    </lightning-card>
+</template>
