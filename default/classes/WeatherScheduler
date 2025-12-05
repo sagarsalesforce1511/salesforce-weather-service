@@ -1,0 +1,6 @@
+global with sharing class WeatherScheduler implements Schedulable {
+    global void execute(SchedulableContext sc) {
+        WeatherBatchJob job = new WeatherBatchJob();
+        Database.executeBatch(job, 20);
+    }
+}
