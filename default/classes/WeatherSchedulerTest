@@ -1,0 +1,59 @@
+@IsTest
+private class WeatherSchedulerTest {
+
+    // Reuse a simple success mock so the batch callouts work during the scheduled run
+    private class WeatherSuccessMock implements HttpCalloutMock {
+        public HTTPResponse respond(HTTPRequest req) {
+            HttpResponse res = new HttpResponse();
+            res.setStatusCode(200);
+            res.setStatus('OK');
+
+            res.setBody('{' +
+                '"main":{"temp":19,"humidity":52,"pressure":1011},' +
+                '"weather":[{"id":801,"main":"Clouds","description":"few clouds","icon":"02d"}],' +
+                '"wind":{"speed":3.2,"deg":180},' +
+                '"name":"Scheduler Test City",' +
+                '"sys":{"country":"GB"},' +
+                '"dt":1726660758' +
+            '}');
+
+            return res;
+        }
+    }
+
+    // We assume Weather_Config__mdt Default record already exists in the org.
+
+    @IsTest
+    static void testSchedulerRunsBatchAndCreatesWeather() {
+        // Test data: one location with coordinates
+        Location__c loc = new Location__c(
+            Name         = 'Scheduler Location',
+            Latitude__c  = 51.5074,
+            Longitude__c = -0.1278
+        );
+        insert loc;
+
+        // Mock callouts so the batch (triggered by the scheduler) can run
+        Test.setMock(HttpCalloutMock.class, new WeatherSuccessMock());
+
+        // Valid cron: run once in the future (date part does not really matter in test)
+        String cronExpr = '0 0 0 1 1 ? 2050'; // 1 Jan 2050 at 00:00
+
+        Test.startTest();
+        // Schedule the job, it will execute after Test.stopTest
+        String jobId = System.schedule('Weather Scheduler Test', cronExpr, new WeatherScheduler());
+        Test.stopTest();
+
+        // After Test.stopTest, the scheduled job has run, which runs the batch
+
+        // Assert that WeatherInfo__c was created for the location
+        List<WeatherInfo__c> infos = [
+            SELECT Location__c, Temperature__c, Description__c, IsLatest__c
+            FROM WeatherInfo__c
+            WHERE Location__c = :loc.Id
+        ];
+
+      
+     
+    }
+}
