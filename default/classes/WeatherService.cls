@@ -46,6 +46,8 @@ public with sharing class WeatherService {
     }
 
     // --- LWC: "Refresh / Get Weather Details" button ---
+    // Updated so that it always updates Last_Weather_Updated__c / Last_Weather_Status__c
+    // and returns a DTO instead of throwing after DML.
     @AuraEnabled(cacheable=false)
     public static WeatherDTO refreshWeatherForLocation(Id locationId) {
         if (locationId == null) {
@@ -60,26 +62,31 @@ public with sharing class WeatherService {
             LIMIT 1
         ];
 
-        // Friendly guard: require coordinates before calling API
-        if (loc.Latitude__c == null || loc.Longitude__c == null) {
-            loc.Last_Weather_Status__c = 'Error: Latitude and Longitude are required.';
-            update loc;
-            throw new AuraHandledException(
-                'Please set Latitude and Longitude on this Location before refreshing weather.'
-            );
-        }
+        WeatherInfo__c wi;
 
         try {
+            // Guard: require coordinates before calling API
+            if (loc.Latitude__c == null || loc.Longitude__c == null) {
+                loc.Last_Weather_Updated__c = System.now();
+                loc.Last_Weather_Status__c  = 'Error: Latitude and Longitude are required.';
+                update loc;
+                // No WeatherInfo__c; return DTO with error status
+                return toDTO(loc, null);
+            }
+
+            // Call external Weather API
             WeatherApiClient.CurrentWeatherResponse apiRes =
                 WeatherApiClient.getCurrentWeather(loc.Latitude__c, loc.Longitude__c);
 
-            WeatherInfo__c wi = createWeatherInfo(
+            // Map and save weather
+            wi = createWeatherInfo(
                 loc,
                 apiRes,
                 JSON.serialize(apiRes)
             );
             saveLatestWeather(wi);
 
+            // Mark success on Location
             loc.Last_Weather_Updated__c = System.now();
             loc.Last_Weather_Status__c  = 'Success';
             update loc;
@@ -87,17 +94,21 @@ public with sharing class WeatherService {
             return toDTO(loc, wi);
 
         } catch (WeatherApiClient.WeatherException e) {
-            // Known integration error – keep detailed message
-            loc.Last_Weather_Status__c = 'Error: ' + e.getMessage();
+            // Known integration error – record details on the Location, no rollback
+            loc.Last_Weather_Updated__c = System.now();
+            loc.Last_Weather_Status__c  = 'Error: ' + e.getMessage();
             update loc;
-            // Surface real integration message to LWC
-            throw new AuraHandledException(e.getMessage());
+
+            // Return DTO with error status, without throwing
+            return toDTO(loc, null);
 
         } catch (Exception e) {
-            // Unexpected error
-            loc.Last_Weather_Status__c = 'Unexpected error: ' + e.getMessage();
+            // Unexpected error – also recorded on the Location
+            loc.Last_Weather_Updated__c = System.now();
+            loc.Last_Weather_Status__c  = 'Unexpected error: ' + e.getMessage();
             update loc;
-            throw new AuraHandledException('Unexpected error while fetching weather.');
+
+            return toDTO(loc, null);
         }
     }
 
